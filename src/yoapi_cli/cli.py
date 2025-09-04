@@ -132,7 +132,7 @@ class YoAPICLI:
         console.print("使用 venv: python -m venv .venv", style="yellow")
         return False
 
-    def init_project(self, project_name: str = None, branch: str = "main") -> int:
+    def init_project(self, project_name: str = None, branch: str = "dev") -> int:
         """
         从GitHub初始化WaveYo-API项目
         
@@ -205,9 +205,9 @@ def init(
         help="项目名称（目录名）"
     ),
     branch: str = typer.Option(
-        "main", 
+        "dev", 
         "--branch", "-b", 
-        help="GitHub分支名称"
+        help="GitHub分支名称，默认为dev分支"
     )
 ):
     """从GitHub初始化WaveYo-API项目"""
@@ -219,12 +219,20 @@ def run(
         False, 
         "--reload", "-r", 
         help="启用热重载模式"
+    ),
+    port: int = typer.Option(
+        8000,
+        "--port", "-p",
+        help="服务器端口号"
     )
 ):
     """运行WaveYo-API项目"""
-    # 这里会实现运行逻辑
-    console.print("🚀 运行项目功能开发中...", style="blue")
-    return 0
+    # 导入运行命令模块
+    from yoapi_cli.commands.run import RunCommand
+    
+    # 创建运行命令实例并执行
+    run_cmd = RunCommand()
+    return run_cmd.run_project(reload=reload, port=port)
 
 @app.command()
 def venv(

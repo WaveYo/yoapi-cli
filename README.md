@@ -242,5 +242,5 @@ python -m nuitka --onefile --standalone --enable-console --remove-output src/yoa
 
 ---
 
-*版本: 0.1.0*
-*最后更新: 2025-08-20*
+*版本: 0.1.03*
+*最后更新: 2025-09-04*
