@@ -86,13 +86,11 @@ class RunCommand:
                     console.print("❌ 检测到虚拟环境目录但无法找到Python可执行文件", style="red")
                     console.print("请重新创建虚拟环境:", style="yellow")
                     console.print("使用 uv: uv venv .venv", style="yellow")
-                    console.print("使用 venv: python -m venv .venv", style="yellow")
                     return None
             
             console.print("❌ 未检测到虚拟环境", style="red")
             console.print("请先创建虚拟环境:", style="yellow")
             console.print("使用 uv: uv venv .venv", style="yellow")
-            console.print("使用 venv: python -m venv .venv", style="yellow")
             return None
     
     def check_uvicorn_available(self, python_executable: Optional[Path] = None) -> bool:
@@ -129,7 +127,6 @@ class RunCommand:
         if not self.check_uvicorn_available(venv_python):
             console.print("❌ uvicorn 在虚拟环境中不可用，请先安装依赖", style="red")
             console.print("使用 uv: uv pip install -r requirements.txt", style="yellow")
-            console.print("使用 pip: pip install -r requirements.txt", style="yellow")
             return 1
         
         # 构建uvicorn命令，使用虚拟环境的Python

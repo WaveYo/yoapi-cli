@@ -20,6 +20,9 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import git
 
+# 导入venv命令模块
+from yoapi_cli.commands.venv import VenvCommand
+
 # 创建控制台实例
 console = Console()
 
@@ -47,52 +50,16 @@ class YoAPICLI:
             return False
     
     def get_package_manager(self) -> Tuple[str, str]:
-        """获取包管理器"""
+        """获取包管理器 - 只支持UV"""
         if self.check_uv_available():
             return ("uv", "uv pip")
-        
-        # 询问用户是否使用pip
-        console.print("❌ uv包管理器不可用", style="red")
-        choice = input("是否使用pip作为替代？(y/N): ").lower().strip()
-        if choice == 'y':
-            return ("pip", "pip")
         else:
-            console.print("💡 建议安装uv以获得更好的性能:", style="yellow")
+            console.print("❌ uv包管理器不可用", style="red")
+            console.print("💡 请安装uv以获得更好的性能:", style="yellow")
             console.print("   curl -LsSf https://astral.sh/uv/install.sh | sh")
             console.print("   或者使用pip安装: pip install uv")
-            sys.exit(1)
+            raise RuntimeError("UV package manager not available")
     
-    def create_venv(self) -> int:
-        """创建虚拟环境"""
-        pkg_manager, pkg_cmd = self.get_package_manager()
-        
-        if pkg_manager == "uv":
-            console.print("🔄 使用uv创建虚拟环境...", style="blue")
-            cmd = ["uv", "venv", ".venv"]
-        else:
-            console.print("🔄 使用venv创建虚拟环境...", style="blue")
-            cmd = [sys.executable, "-m", "venv", ".venv"]
-        
-        try:
-            result = subprocess.run(cmd)
-            if result.returncode == 0:
-                console.print("✅ 虚拟环境创建成功", style="green")
-                
-                # 提供激活指令
-                if os.name == 'nt':  # Windows
-                    console.print("如需激活虚拟环境，执行:", style="yellow")
-                    console.print("    .venv\\Scripts\\activate")
-                else:  # Unix/Linux/Mac
-                    console.print("如需激活虚拟环境，执行:", style="yellow")
-                    console.print("    source .venv/bin/activate")
-                
-                return 0
-            else:
-                console.print("❌ 虚拟环境创建失败", style="red")
-                return 1
-        except Exception as e:
-            console.print(f"❌ 创建虚拟环境时出错: {e}", style="red")
-            return 1
     
     def ensure_venv_activated(self) -> bool:
         """确保虚拟环境已激活"""
@@ -129,7 +96,6 @@ class YoAPICLI:
         
         console.print("❌ 未检测到虚拟环境，请先创建并激活虚拟环境", style="red")
         console.print("使用 uv: uv venv .venv", style="yellow")
-        console.print("使用 venv: python -m venv .venv", style="yellow")
         return False
 
     def init_project(self, project_name: str = None, branch: str = "dev") -> int:
@@ -181,6 +147,7 @@ class YoAPICLI:
             console.print("\n🚀 下一步:", style="yellow")
             console.print(f"   cd {project_name}")
             console.print("   yoapi venv create")
+            console.print("   yoapi venv install")
             console.print("   yoapi run")
             
             return 0
@@ -238,14 +205,19 @@ def run(
 def venv(
     command: str = typer.Argument(
         ..., 
-        help="虚拟环境命令: create"
+        help="虚拟环境命令: create, install"
     )
 ):
     """虚拟环境管理"""
+    venv_cmd = VenvCommand()
+    
     if command == "create":
-        return cli.create_venv()
+        return venv_cmd.create_venv()
+    elif command == "install":
+        return venv_cmd.install_dependencies()
     else:
         console.print(f"❌ 未知的虚拟环境命令: {command}", style="red")
+        console.print("可用命令: create, install", style="yellow")
         return 1
 
 @app.command()

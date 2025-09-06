@@ -161,7 +161,7 @@ def test_version_command(capsys):
     
     captured = capsys.readouterr()
     assert result == 0
-    assert "yoapi-cli v0.1.0" in captured.out
+    assert "yoapi-cli v0.1.8" in captured.out
 
 
 if __name__ == "__main__":
