@@ -80,10 +80,10 @@ class YoAPICLI:
                 
                 # 提供激活指令
                 if os.name == 'nt':  # Windows
-                    console.print("请激活虚拟环境:", style="yellow")
+                    console.print("如需激活虚拟环境，执行:", style="yellow")
                     console.print("    .venv\\Scripts\\activate")
                 else:  # Unix/Linux/Mac
-                    console.print("请激活虚拟环境:", style="yellow")
+                    console.print("如需激活虚拟环境，执行:", style="yellow")
                     console.print("    source .venv/bin/activate")
                 
                 return 0

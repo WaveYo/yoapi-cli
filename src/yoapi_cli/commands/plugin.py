@@ -5,17 +5,13 @@
 import os
 import sys
 import shutil
-import tempfile
 from pathlib import Path
-from typing import Optional, List, Dict, Any
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 import git
-import requests
 
 from yoapi_cli.cli import YoAPICLI
 
@@ -30,14 +26,14 @@ class PluginManager:
         self.plugins_dir = cli.plugins_dir
     
     def validate_plugin_name(self, name: str) -> bool:
-        """验证插件名称是否符合 yoapi-plugin-xxx 规范"""
-        return name.startswith("yoapi-plugin-")
+        """验证插件名称是否符合 yoapi_plugin_xxx 规范"""
+        return name.startswith("yoapi_plugin_")
     
     def normalize_plugin_name(self, repo_name: str) -> str:
         """规范化插件名称"""
-        if repo_name.startswith("yoapi-plugin-"):
+        if repo_name.startswith("yoapi_plugin_"):
             return repo_name
-        return f"yoapi-plugin-{repo_name}"
+        return f"yoapi_plugin_{repo_name}"
     
     def get_github_repo_url(self, repo_name: str) -> str:
         """获取GitHub仓库URL"""
@@ -54,7 +50,7 @@ class PluginManager:
         从GitHub下载插件
         
         Args:
-            repo_name: GitHub仓库名称（如 WaveYo/yoapi-plugin-mysql-database）
+            repo_name: GitHub仓库名称（如 WaveYo/yoapi_plugin_mysql_database）
             force: 是否强制覆盖已存在的插件
             
         Returns:
@@ -71,7 +67,7 @@ class PluginManager:
             
             # 验证插件名称
             if not self.validate_plugin_name(plugin_name):
-                console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi-plugin-xxx 规范", style="red")
+                console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi_plugin_xxx 规范", style="red")
                 return 1
             
             # 检查插件是否已存在
@@ -108,8 +104,8 @@ class PluginManager:
             # 检查插件结构
             self._validate_plugin_structure(plugin_dir)
             
-            # 安装插件依赖
-            self._install_plugin_dependencies(plugin_dir, plugin_name)
+            # 提示用户运行 yoapi run 安装依赖
+            console.print("ℹ️  运行 yoapi run 自动安装依赖", style="blue")
             
             return 0
             
@@ -133,34 +129,6 @@ class PluginManager:
             if not (plugin_dir / file).exists():
                 console.print(f"⚠️  警告: 插件缺少必要文件 {file}", style="yellow")
     
-    def _install_plugin_dependencies(self, plugin_dir: Path, plugin_name: str):
-        """安装插件依赖"""
-        requirements_file = plugin_dir / "requirements.txt"
-        
-        if not requirements_file.exists():
-            console.print(f"ℹ️  插件 {plugin_name} 没有依赖需要安装", style="blue")
-            return
-        
-        console.print(f"📦 正在安装插件 {plugin_name} 的依赖...", style="blue")
-        
-        pkg_manager, pkg_cmd = self.cli.get_package_manager()
-        
-        try:
-            if pkg_manager == "uv":
-                cmd = ["uv", "pip", "install", "-r", str(requirements_file)]
-            else:
-                cmd = [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                console.print(f"✅ 插件 {plugin_name} 依赖安装成功", style="green")
-            else:
-                console.print(f"❌ 插件 {plugin_name} 依赖安装失败", style="red")
-                console.print(result.stderr, style="red")
-                
-        except Exception as e:
-            console.print(f"❌ 安装依赖时出错: {e}", style="red")
     
     def list_plugins(self) -> int:
         """列出所有已安装的插件"""
@@ -176,6 +144,7 @@ class PluginManager:
                     'path': item,
                     'has_init': (item / "__init__.py").exists(),
                     'has_requirements': (item / "requirements.txt").exists(),
+                    'has_json': (item / "plugin.json").exists(),
                 })
         
         if not plugins:
@@ -187,13 +156,15 @@ class PluginManager:
         table.add_column("状态", style="green")
         table.add_column("依赖文件", style="yellow")
         table.add_column("主文件", style="yellow")
+        table.add_column("元数据", style="yellow")
         
         for plugin in plugins:
             status = "✅ 正常" if plugin['has_init'] else "❌ 无效"
             deps = "✅ 有" if plugin['has_requirements'] else "❌ 无"
             main_file = "✅ 有" if plugin['has_init'] else "❌ 无"
+            plugin_json = "✅ 有" if plugin['has_json'] else "❌ 无"
             
-            table.add_row(plugin['name'], status, deps, main_file)
+            table.add_row(plugin['name'], status, deps, main_file, plugin_json)
         
         console.print(table)
         return 0
@@ -203,7 +174,7 @@ class PluginManager:
         normalized_name = self.normalize_plugin_name(plugin_name)
         
         if not self.validate_plugin_name(normalized_name):
-            console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi-plugin-xxx 规范", style="red")
+            console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi_plugin_xxx 规范", style="red")
             return 1
         
         plugin_dir = self.plugins_dir / normalized_name
@@ -225,7 +196,7 @@ class PluginManager:
         normalized_name = self.normalize_plugin_name(plugin_name)
         
         if not self.validate_plugin_name(normalized_name):
-            console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi-plugin-xxx 规范", style="red")
+            console.print(f"❌ 插件名称 '{plugin_name}' 不符合 yoapi_plugin_xxx 规范", style="red")
             return 1
         
         if self.check_plugin_exists(normalized_name):
@@ -252,14 +223,16 @@ class PluginManager:
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter
-from plugins.log import get_log_service
 
 # 加载环境变量
 env_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
-router = APIRouter(prefix="/{plugin_name.replace('yoapi-plugin-', '')}", tags=["{plugin_name.replace('yoapi-plugin-', '')}"])
+# 全局日志服务实例
+_log_service = None
+
+router = APIRouter(prefix="/{plugin_name.replace('yoapi_plugin_', '')}", tags=["{plugin_name.replace('yoapi_plugin_', '')}"])
 
 @router.get("/")
 async def root():
@@ -269,8 +242,17 @@ async def root():
     return {{"message": "Hello from {plugin_name}", "status": "ok"}}
 
 def register(app, **dependencies):
-    """插件注册函数"""
-    logger = get_log_service().get_logger(__name__)
+    """
+    插件注册函数
+    初始化数据库连接和内部API
+    """
+    # 通过依赖注入获取日志服务
+    global _log_service
+    _log_service = dependencies.get('log_service')
+    if _log_service is None:
+        raise RuntimeError("日志服务依赖未找到")
+    logger = _log_service.get_logger(__name__)
+
     app.include_router(router)
     logger.info("插件 {plugin_name} 已成功注册")
 '''
@@ -306,7 +288,7 @@ PLUGIN_CONFIG_KEY=value
 
 ## API端点
 
-- `GET /{plugin_name.replace('yoapi-plugin-', '')}/` - 插件根端点
+- `GET /{plugin_name.replace('yoapi_plugin_', '')}/` - 插件根端点
 
 ## 开发说明
 
@@ -323,13 +305,28 @@ PLUGIN_CONFIG_KEY=value
         
         with open(plugin_dir / ".env.example", "w", encoding="utf-8") as f:
             f.write(env_example)
+        
+        # plugin.json - 插件元数据文件
+        plugin_json_content = f'''{{
+  "name": "{plugin_name}",
+  "version": "1.0.0",
+  "description": "WaveYo-API 插件模板",
+  "author": "开发者名称",
+  "priority": 50,
+  "dependencies": ["yoapi-plugin-log"],
+  "tags": ["template", "example"]
+}}
+'''
+        
+        with open(plugin_dir / "plugin.json", "w", encoding="utf-8") as f:
+            f.write(plugin_json_content)
 
 # 创建插件管理器实例
 plugin_manager = PluginManager(YoAPICLI())
 
 @app.command()
 def download(
-    repo_name: str = typer.Argument(..., help="GitHub仓库名称（如 WaveYo/yoapi-plugin-mysql-database）"),
+    repo_name: str = typer.Argument(..., help="GitHub仓库名称（如 WaveYo/yoapi_plugin_mysql_database）"),
     force: bool = typer.Option(False, "--force", "-f", help="强制覆盖已存在的插件")
 ):
     """从GitHub下载插件"""
@@ -349,7 +346,7 @@ def remove(
 
 @app.command()
 def new(
-    plugin_name: str = typer.Argument(..., help="插件名称（会自动添加yoapi-plugin-前缀）")
+    plugin_name: str = typer.Argument(..., help="插件名称（会自动添加yoapi_plugin_前缀）")
 ):
     """创建新插件模板"""
     return plugin_manager.create_new_plugin(plugin_name)

@@ -21,49 +21,86 @@ class RunCommand:
         self.project_root = project_root or Path.cwd()
         self.venv_dir = self.project_root / ".venv"
     
-    def ensure_venv_activated(self) -> bool:
-        """确保虚拟环境已激活"""
-        # 检查是否在虚拟环境目录中
-        python_executable = Path(sys.executable)
+    def detect_virtual_env(self) -> Optional[Path]:
+        """检测并返回虚拟环境的Python可执行文件路径"""
+        # 检查常见的虚拟环境目录
+        venv_dirs = [".venv", "venv", "env"]
         
-        # 检查是否在虚拟环境目录中
-        if self.venv_dir.exists() and python_executable.is_relative_to(self.venv_dir):
-            return True
+        for venv_dir_name in venv_dirs:
+            venv_dir = self.project_root / venv_dir_name
+            if venv_dir.exists():
+                # 检查不同平台的Python可执行文件路径
+                python_paths = []
+                if os.name == 'nt':  # Windows
+                    python_paths.append(venv_dir / "Scripts" / "python.exe")
+                    python_paths.append(venv_dir / "Scripts" / "python")
+                else:  # Unix/Linux/Mac
+                    python_paths.append(venv_dir / "bin" / "python")
+                    python_paths.append(venv_dir / "bin" / "python3")
+                
+                for python_path in python_paths:
+                    if python_path.exists():
+                        return python_path
+        
+        # 检查是否已经在虚拟环境中
+        python_executable = Path(sys.executable)
+        for venv_dir_name in venv_dirs:
+            venv_dir = self.project_root / venv_dir_name
+            if venv_dir.exists() and python_executable.is_relative_to(venv_dir):
+                return python_executable
         
         # 检查传统的虚拟环境标志
         if (hasattr(sys, 'real_prefix') or 
             (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)):
-            return True
+            return python_executable
         
         # 检查VIRTUAL_ENV环境变量
         if os.environ.get('VIRTUAL_ENV'):
-            return True
+            venv_path = Path(os.environ['VIRTUAL_ENV'])
+            if os.name == 'nt':
+                return venv_path / "Scripts" / "python.exe"
+            else:
+                return venv_path / "bin" / "python"
         
-        # 检查是否存在虚拟环境目录
-        if self.venv_dir.exists():
-            # 提供正确的激活命令
-            if os.name == 'nt':  # Windows
-                activate_cmd = ".venv\\Scripts\\activate"
-                console.print("⚠️  检测到虚拟环境但未激活，请手动激活:", style="yellow")
-                console.print(f"    {activate_cmd}")
-                console.print("或者使用: .\\.venv\\Scripts\\activate")
-            else:  # Unix/Linux/Mac
-                activate_cmd = "source .venv/bin/activate"
-                console.print("⚠️  检测到虚拟环境但未激活，请手动激活:", style="yellow")
-                console.print(f"    {activate_cmd}")
-            
-            return False
-        
-        console.print("❌ 未检测到虚拟环境，请先创建并激活虚拟环境", style="red")
-        console.print("使用 uv: uv venv .venv", style="yellow")
-        console.print("使用 venv: python -m venv .venv", style="yellow")
-        return False
+        return None
     
-    def check_uvicorn_available(self) -> bool:
+    def ensure_venv_activated(self) -> Optional[Path]:
+        """确保虚拟环境已激活，返回虚拟环境的Python路径"""
+        venv_python = self.detect_virtual_env()
+        
+        if venv_python:
+            # 检查是否已经在使用虚拟环境的Python
+            current_python = Path(sys.executable)
+            if current_python == venv_python:
+                console.print("✅ 虚拟环境已激活", style="green")
+                return venv_python
+            else:
+                console.print(f"⚠️  检测到虚拟环境，将使用: {venv_python}", style="yellow")
+                return venv_python
+        else:
+            # 检查是否存在虚拟环境目录但无法找到Python
+            venv_dirs = [".venv", "venv", "env"]
+            for venv_dir_name in venv_dirs:
+                venv_dir = self.project_root / venv_dir_name
+                if venv_dir.exists():
+                    console.print("❌ 检测到虚拟环境目录但无法找到Python可执行文件", style="red")
+                    console.print("请重新创建虚拟环境:", style="yellow")
+                    console.print("使用 uv: uv venv .venv", style="yellow")
+                    console.print("使用 venv: python -m venv .venv", style="yellow")
+                    return None
+            
+            console.print("❌ 未检测到虚拟环境", style="red")
+            console.print("请先创建虚拟环境:", style="yellow")
+            console.print("使用 uv: uv venv .venv", style="yellow")
+            console.print("使用 venv: python -m venv .venv", style="yellow")
+            return None
+    
+    def check_uvicorn_available(self, python_executable: Optional[Path] = None) -> bool:
         """检查uvicorn是否可用"""
+        python_cmd = python_executable or Path(sys.executable)
         try:
             result = subprocess.run(
-                [sys.executable, "-c", "import uvicorn; print(uvicorn.__version__)"],
+                [str(python_cmd), "-c", "import uvicorn; print(uvicorn.__version__)"],
                 capture_output=True, 
                 text=True, 
                 timeout=5
@@ -83,20 +120,21 @@ class RunCommand:
         Returns:
             int: 退出代码
         """
-        # 检查虚拟环境
-        if not self.ensure_venv_activated():
+        # 检测虚拟环境并获取Python路径
+        venv_python = self.ensure_venv_activated()
+        if not venv_python:
             return 1
         
-        # 检查uvicorn是否可用
-        if not self.check_uvicorn_available():
-            console.print("❌ uvicorn 不可用，请先安装依赖", style="red")
+        # 检查uvicorn是否在虚拟环境中可用
+        if not self.check_uvicorn_available(venv_python):
+            console.print("❌ uvicorn 在虚拟环境中不可用，请先安装依赖", style="red")
             console.print("使用 uv: uv pip install -r requirements.txt", style="yellow")
             console.print("使用 pip: pip install -r requirements.txt", style="yellow")
             return 1
         
-        # 构建uvicorn命令
+        # 构建uvicorn命令，使用虚拟环境的Python
         cmd = [
-            sys.executable, "-m", "uvicorn",
+            str(venv_python), "-m", "uvicorn",
             "main:create_app",
             "--host", "0.0.0.0",
             "--port", str(port)
@@ -109,7 +147,7 @@ class RunCommand:
             console.print("🚀 启动服务...", style="blue")
         
         console.print(f"📡 服务地址: http://localhost:{port}", style="green")
-        console.print("📚 API文档: http://localhost:{port}/docs", style="green")
+        console.print(f"📚 API文档: http://localhost:{port}/docs", style="green")
         console.print("⏹️  按 Ctrl+C 停止服务", style="yellow")
         
         try:
