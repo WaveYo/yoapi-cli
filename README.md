@@ -45,14 +45,15 @@ yoapi init
 yoapi init my-api-project
 
 # 从特定分支初始化
-yoapi init --branch develop
+yoapi init --branch dev
 ```
 
-### 2. 创建虚拟环境
+### 2. 创建安装虚拟环境
 
 ```bash
 cd my-api-project
 yoapi venv create
+yoapi venv install
 ```
 
 ### 3. 运行项目
@@ -79,7 +80,11 @@ yoapi init [PROJECT_NAME] [--branch BRANCH]
 ### 虚拟环境管理
 
 ```bash
+# 创建虚拟环境
 yoapi venv create
+
+# 安装基础依赖
+yoapi venv install
 ```
 
 ### 项目运行
@@ -115,6 +120,7 @@ yoapi-cli/
 │       ├── cli.py          # 主CLI程序
 │       ├── commands/       # 命令模块
 │       │   ├── init.py     # 项目初始化
+│       │   ├── venv.py     # 虚拟环境管理
 │       │   ├── plugin.py   # 插件管理
 │       │   └── run.py      # 运行命令
 │       └── utils/          # 工具函数
